@@ -1,0 +1,20 @@
+{
+    "base": "./src",
+    "output": "./build",
+    "rules": {
+	    "js": {
+	    	"compile": true,
+	    	"compress": true,
+	    	"copy": true
+	    },
+	    "css": {
+	    	"copy": true
+	    },
+	    "jpeg|jpg|png|gif": {
+	    	"copy": true
+	    },
+	    "html": {
+	    	"copy": true
+	    }
+	}
+}

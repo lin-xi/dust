@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, height=device-height" />
+    <link rel="stylesheet" type="text/css" href="index.css" />
+    <title>webgl</title>
+    <script src="module.js"></script>
+
+    <script id="fs" type="x-shader/x-fragment">
+        precision mediump float;
+		varying vec4 vColor;
+
+        void main(void) {
+            gl_FragColor = vColor;
+        }
+    </script>
+
+    <script id="vs" type="x-shader/x-vertex">
+        attribute vec3 position;
+        attribute vec3 normal;
+        attribute vec4 color;
+        uniform   mat4 mvpMatrix;
+        uniform   mat4 invMatrix; //逆矩阵
+        uniform   vec3 lightDirection;
+        uniform   vec3 eyeDirection; //视线向量
+        uniform   vec4 ambientColor;
+        varying   vec4 vColor;
+
+        void main(void) {
+            vec3  invLight = normalize(invMatrix * vec4(lightDirection, 0.0)).xyz;
+            vec3  invEye   = normalize(invMatrix * vec4(eyeDirection, 0.0)).xyz;
+            vec3  halfLE   = normalize(invLight + invEye);
+            float diffuse  = clamp(dot(normal, invLight), 0.0, 1.0);
+            float specular = pow(clamp(dot(normal, halfLE), 0.0, 1.0), 50.0);
+            //颜色＝顶点颜色 * 扩散光 + 反射光 + 环境光
+            vec4  light    = color * vec4(vec3(diffuse), 1.0) + vec4(vec3(specular), 1.0);
+            vColor         = light + ambientColor;
+            gl_Position    = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+            vColor         = aVertexColor;
+            gl_Position    = mvpMatrix * vec4(position, 1.0); 
+        }
+    </script>
+
+    <script type="text/javascript">
+        var c = document.getElementById('canvas');
+        c.width = 800;
+        c.height = 600;
+        var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+        
+        var v_shader = create_shader('vs');
+        var f_shader = create_shader('fs');
+
+        var prg = create_program(v_shader, f_shader);
+
+        var attLocation = new Array();
+        attLocation[0] = gl.getAttribLocation(prg, 'position');
+        attLocation[1] = gl.getAttribLocation(prg, 'normal');
+        attLocation[2] = gl.getAttribLocation(prg, 'color');
+    
+        var attStride = new Array();
+        attStride[0] = 3;
+        attStride[1] = 3;
+        attStride[2] = 4;
+
+        var torusData = torus(32, 32, 1.0, 2.0);
+        var position = torusData[0];
+        var normal = torusData[1];
+        var color = torusData[2];
+        var index = torusData[3];
+
+        var pos_vbo = create_vbo(position);
+        var nor_vbo = create_vbo(normal);
+        var col_vbo = create_vbo(color);
+    
+
+        //创建着色器
+        function create_shader(id){
+            var shader;
+            var scriptElement = document.getElementById(id);
+            if(!scriptElement){return;}
+            switch(scriptElement.type){
+                case 'x-shader/x-vertex':
+                    shader = gl.createShader(gl.VERTEX_SHADER);
+                    break;
+                case 'x-shader/x-fragment':
+                    shader = gl.createShader(gl.FRAGMENT_SHADER);
+                    break;
+                default :
+                    return;
+            }
+            gl.shaderSource(shader, scriptElement.text);
+            gl.compileShader(shader);
+            if(gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+                return shader;
+            }else{
+                alert(gl.getShaderInfoLog(shader));
+            }
+        }
+
+        //创建程序对象
+        function create_program(vs, fs){
+            var program = gl.createProgram();
+        
+            gl.attachShader(program, vs);
+            gl.attachShader(program, fs);
+        
+            gl.linkProgram(program);
+        
+            if(gl.getProgramParameter(program, gl.LINK_STATUS)){
+                gl.useProgram(program);
+                return program;
+            }else{
+                alert(gl.getProgramInfoLog(program));
+            }
+        }
+
+        // トーラスを生成する関数
+        function torus(row, column, rad, orad){
+            var pos = new Array(), 
+                nor = new Array(),
+                col = new Array(), 
+                idx = new Array();
+
+            for(var i = 0; i <= row; i++){
+                var r = Math.PI * 2 / row * i;
+                var rr = Math.cos(r);
+                var ry = Math.sin(r);
+
+                for(var j = 0; j <= column; j++){
+                    var tr = Math.PI * 2 / column * j;
+                    var tx = (rr * rad + orad) * Math.cos(tr);
+                    var ty = ry * irad;
+                var tz = (rr * irad + orad) * Math.sin(tr);
+                var rx = rr * Math.cos(tr);
+                var rz = rr * Math.sin(tr);
+                pos.push(tx, ty, tz);
+                nor.push(rx, ry, rz);
+                var tc = hsva(360 / column * ii, 1, 1, 1);
+                col.push(tc[0], tc[1], tc[2], tc[3]);
+            }
+            }
+        }
+
+        
+
+
+        function drawScene() {
+            gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
+
+            mat4.identity(mvMatrix);
+
+            mat4.translate(mvMatrix, [-1.5, 0.0, -7.0]);
+            gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, triangleVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            setMatrixUniforms();
+            gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
+
+
+            mat4.translate(mvMatrix, [3.0, 0.0, 0.0]);
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            setMatrixUniforms();
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);
+        }
+        
+        function webGLStart() {
+            var canvas = document.getElementById("canvas");
+            initGL(canvas);
+            initShaders();
+            initBuffers();
+
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.enable(gl.DEPTH_TEST);
+
+            drawScene();
+        }
+    </script>
+
+</head>
+<body onload="webGLStart();">
+	<!-- <div id="dust-demo"></div> -->
+
+    <canvas id="canvas" style="border: none;" width="500" height="500"></canvas>
+
+    <!--
+    <script type="text/javascript" src="dust/gl-matrix.js"></script>
+    <script type="text/javascript" src="dust/module.js"></script>
+    <script type="text/javascript" src="app.js"></script>
+    -->
+</body>
+</html>
